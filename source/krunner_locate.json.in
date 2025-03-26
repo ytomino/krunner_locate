@@ -1,0 +1,15 @@
+{
+	"KPlugin": {
+		"Authors": [{
+			"Email": "demoonlit@panathenaia.halfmoon.jp",
+			"Name": "ytomino"
+		}],
+		"Description": "Search and open files and directories with locate",
+		"EnabledByDefault": true,
+		"Icon": "find-location",
+		"License": "LGPL 3",
+		"Name": "Locate",
+		"Version": "@CMAKE_PROJECT_VERSION@"
+	},
+	"X-Plasma-Runner-Unique-Results": true
+}
