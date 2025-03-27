@@ -1,6 +1,7 @@
 #ifndef USE_LOCATE_HXX
 #define USE_LOCATE_HXX
 
+#include <ctime>
 #include <functional>
 #include <string_view>
 
@@ -17,5 +18,7 @@ int locate(
 	std::function<int (std::string_view)> f,
 	int *status /* when the return value is ELOCATE_FAILURE */
 );
+
+int locate_mtime(std::time_t *mtime);
 
 #endif
