@@ -11,8 +11,9 @@
 
 #include <QDir>
 
+#include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
-#include <KProcess>
+#include <KIO/OpenUrlJob>
 #include <krunner_version.h>
 
 static char const log_name[] = "krunner_locate";
@@ -342,8 +343,6 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	}
 }
 
-static QString const open_command = QStringLiteral("kde-open");
-
 void LocateRunner::run(
 	const KRunner::RunnerContext & /* context */, const KRunner::QueryMatch &match
 )
@@ -357,10 +356,22 @@ void LocateRunner::run(
 	);
 #endif
 	
+	QList<QUrl> urls = match.urls();
 	if(selected == &this->open_containing_folder_action){
-		KIO::highlightInFileManager(match.urls());
+		KIO::highlightInFileManager(urls);
 	}else{
-		KProcess::startDetached(open_command, QStringList{match.id()});
+		for(QList<QUrl>::const_iterator i = urls.cbegin(); i != urls.cend(); ++ i){
+			KIO::OpenUrlJob *job = new KIO::OpenUrlJob(*i);
+			
+			/* setting like kioclient */
+			job->setUiDelegate(
+				KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr)
+			);
+			job->setRunExecutables(false);
+			job->setFollowRedirections(false);
+			
+			job->start();
+		}
 	}
 }
 
