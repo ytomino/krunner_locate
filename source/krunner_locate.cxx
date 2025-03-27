@@ -11,6 +11,7 @@
 
 #include <QDir>
 
+#include <KIO/OpenFileManagerWindowJob>
 #include <KProcess>
 #include <krunner_version.h>
 
@@ -266,7 +267,9 @@ LocateRunner::LocateRunner(
 	QObject *parent, KPluginMetaData const &pluginMetaData,
 	QVariantList const &args
 )
-	: KRunner::AbstractRunner(parent, pluginMetaData, args)
+	: KRunner::AbstractRunner(parent, pluginMetaData, args),
+		open_containing_folder_action(QStringLiteral("Open Containing Folder")),
+		actions{&this->open_containing_folder_action}
 {
 #ifdef LOGGING
 	install_log_handler();
@@ -310,17 +313,20 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	){
 		qsizetype sep = rfind_sep(iter->path);
 		if(sep >= 0){
+			QUrl url = QUrl::fromLocalFile(iter->path);
 			QString dir_name = iter->path.left(sep);
 			if(iter->path.startsWith(home_path)){
 				dir_name.replace(0, home_path.size() - 1, QChar('~'));
 			}
 			double relevance = 0.25 * (1. - n / list->size()); /* keep sorted */
 			KRunner::QueryMatch match(this);
-			match.setId(QUrl::fromLocalFile(iter->path).toString());
+			match.setId(url.toString());
+			match.setUrls(QList<QUrl>{url});
 			match.setText(iter->path.right(iter->path.size() - (sep + 1)));
 			match.setSubtext(dir_name);
 			match.setIconName(*iter->icon);
 			match.setRelevance(relevance);
+			match.setActions(this->actions);
 			context.addMatch(match);
 			n += 1.;
 		}
@@ -333,11 +339,20 @@ void LocateRunner::run(
 	const KRunner::RunnerContext & /* context */, const KRunner::QueryMatch &match
 )
 {
+	QAction const *selected = match.selectedAction();
 #ifdef LOGGING
-	qDebug("%s: run: %s", log_name, qPrintable(match.text()));
+	qDebug(
+		"%s: run: %s, %s",
+		log_name, qPrintable(match.text()),
+		(selected != nullptr) ? qPrintable(selected->text()) : "null"
+	);
 #endif
 	
-	KProcess::startDetached(open_command, QStringList{match.id()});
+	if(selected == &this->open_containing_folder_action){
+		KIO::highlightInFileManager(match.urls());
+	}else{
+		KProcess::startDetached(open_command, QStringList{match.id()});
+	}
 }
 
 K_PLUGIN_CLASS_WITH_JSON(LocateRunner, "krunner_locate.json")

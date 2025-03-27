@@ -14,6 +14,7 @@ KDE Frameworks >= 5.103
  It depends on the libraries corresponding to the following Debian packages:
  
  - libkf5i18n-dev
+ - libkf5kio-dev
  - libkf5runner-dev
 
 Install
