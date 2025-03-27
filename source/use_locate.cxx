@@ -19,7 +19,7 @@ static int do_close(int fd)
 {
 	while(close(fd) < 0){
 		int error;
-		if((error = errno) != EINTR) return error;
+		if((error = errno) != EINTR) return nonzero_errno(error);
 	}
 	return 0;
 }
@@ -28,7 +28,7 @@ static int do_waitpid(int pid, int *status, int options)
 {
 	while(waitpid(pid, status, options) < 0){
 		int error;
-		if((error = errno) != EINTR) return error;
+		if((error = errno) != EINTR) return nonzero_errno(error);
 	}
 	return 0;
 }
@@ -36,8 +36,8 @@ static int do_waitpid(int pid, int *status, int options)
 static int set_cloexec(int fd)
 {
 	int flags = fcntl(fd, F_GETFD, 0);
-	if(flags < 0) return errno;
-	if(fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) return errno;
+	if(flags < 0) return nonzero_errno(errno);
+	if(fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) return nonzero_errno(errno);
 	return 0;
 }
 
@@ -99,7 +99,7 @@ static int read_0(
 	char c;
 	int r = std::fread(&c, 1, 1, in);
 	if(r != 1){
-		if(std::ferror(in)) return errno;
+		if(std::ferror(in)) return nonzero_errno(errno);
 		if(std::feof(in)) return EOF; /* -1 */
 	}else if(c == '\0'){
 		int error = f(std::string_view(*buffer_data, *buffer_length));
@@ -109,7 +109,7 @@ static int read_0(
 		if(*buffer_length >= *buffer_capacity){
 			char *new_data =
 				static_cast<char *>(std::realloc(*buffer_data, *buffer_capacity * 2));
-			if(new_data == nullptr) return errno;
+			if(new_data == nullptr) return nonzero_errno(errno);
 			*buffer_capacity = malloc_usable_size(new_data);
 			*buffer_data = new_data;
 		}
@@ -129,11 +129,11 @@ int locate(
 	
 	/* pipe */
 	int pipefds[2];
-	if(pipe(pipefds) < 0) return errno;
+	if(pipe(pipefds) < 0) return nonzero_errno(errno);
 	if((error = set_cloexec(pipefds[0])) != 0) return error;
 	FILE *in = fdopen(pipefds[0], "r");
 	if(in == nullptr){
-		error = errno;
+		error = nonzero_errno(errno);
 		do_close(pipefds[0]);
 		do_close(pipefds[1]);
 		return error;
@@ -155,7 +155,7 @@ int locate(
 	/* read */
 	char *buffer_data = static_cast<char *>(std::malloc(PATH_MAX));
 	if(buffer_data == nullptr){
-		pending_error = errno;
+		pending_error = nonzero_errno(errno);
 	}else{
 		std::size_t buffer_capacity = malloc_usable_size(buffer_data);
 		std::size_t buffer_length = 0;
@@ -175,7 +175,7 @@ int locate(
 			return error;
 		}
 	}while(! WIFEXITED(*status) && ! WIFSIGNALED(*status));
-	if(std::fclose(in) < 0) return errno;
+	if(std::fclose(in) < 0) return nonzero_errno(errno);
 	if((WIFEXITED(*status) && WEXITSTATUS(*status) != 0) || WIFSIGNALED(*status)){
 		return ELOCATE_FAILURE;
 	}

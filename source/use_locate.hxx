@@ -4,7 +4,13 @@
 #include <functional>
 #include <string_view>
 
-#define ELOCATE_FAILURE 0x10001
+#define EUNKNOWNERROR 0x10001
+#define ELOCATE_FAILURE 0x10002
+
+inline int nonzero_errno(int error)
+{
+	return (error == 0) ? EUNKNOWNERROR : error;
+}
 
 int locate(
 	std::string_view pattern, bool base_name, bool ignore_case,
