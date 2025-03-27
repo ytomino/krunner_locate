@@ -10,6 +10,7 @@
 #include <linux/limits.h>
 #include <malloc.h>
 #include <spawn.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -181,4 +182,30 @@ int locate(
 	}
 	
 	return pending_error;
+}
+
+static int do_stat(char const *path, struct stat *buf)
+{
+	while(lstat(path, buf) < 0){
+		int error;
+		if((error = errno) != EINTR) return nonzero_errno(error);
+	}
+	return 0;
+}
+
+static char const plocate_db[] = "/var/lib/plocate/plocate.db"; /* plocate */
+static char const mlocate_db[] = "/var/lib/mlocate/mlocate.db"; /* mlocate */
+static char const slocate_db[] = "/var/lib/slocate/slocate.db"; /* Findutils */
+
+int locate_mtime(std::time_t *mtime)
+{
+	struct stat statbuf;
+	int error;
+	if((error = do_stat(plocate_db, &statbuf)) != 0){
+		if((error = do_stat(mlocate_db, &statbuf)) != 0){
+			if((error = do_stat(slocate_db, &statbuf)) != 0) return error;
+		}
+	}
+	*mtime = statbuf.st_mtime;
+	return 0;
 }

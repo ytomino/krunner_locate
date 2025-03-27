@@ -7,6 +7,8 @@
 #include <map>
 #include <set>
 
+#include <sys/time.h>
+
 #include <QDir>
 
 #include <KProcess>
@@ -212,6 +214,52 @@ static queried_list_t const *query_with_cache(query_t const *query)
 	return iter->second.get();
 }
 
+static void clear_cache()
+{
+#ifdef LOGGING
+	qDebug("%s: clear_cache.", log_name);
+#endif
+	
+	query_cache.clear();
+	locate_cache.clear();
+	qstring_cache.clear();
+}
+
+/* modification time */
+/* Note: time_t is signed long in Linux */
+
+static_assert(static_cast<std::time_t>(0) > static_cast<std::time_t>(-1));
+
+static int get_now(std::time_t *time)
+{
+	struct timeval tv;
+	if(gettimeofday(&tv, nullptr) < 0){
+		return nonzero_errno(errno);
+	}
+	*time = tv.tv_sec;
+	return 0;
+}
+
+static std::time_t const interval = 60;
+static std::time_t last_locate_mtime = -1;
+static std::time_t last_use_time = -(interval + 1);
+
+static void update_time(std::time_t now)
+{
+	std::time_t old = last_use_time;
+	last_use_time = now;
+	if(now - old > interval){
+		std::time_t mtime;
+		if(locate_mtime(&mtime) != 0){
+			return; /* error */
+		}
+		if(mtime != last_locate_mtime){ /* updatedb is executed */
+			clear_cache();
+			last_locate_mtime = mtime;
+		}
+	}
+}
+
 /* LocateRunner */
 
 LocateRunner::LocateRunner(
@@ -244,6 +292,11 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 #ifdef LOGGING
 	qDebug("%s: match: %s", log_name, qPrintable(query_string));
 #endif
+	
+	std::time_t now;
+	if(get_now(&now) == 0){
+		update_time(now);
+	}
 	
 	QByteArray query_utf8 = query_string.toUtf8();
 	query_t query;
