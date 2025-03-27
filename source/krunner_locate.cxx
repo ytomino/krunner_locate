@@ -7,6 +7,8 @@
 #include <map>
 #include <set>
 
+#include <QDir>
+
 #include <KProcess>
 #include <krunner_version.h>
 
@@ -59,6 +61,18 @@ static qsizetype rfind_sep(QStringView path)
 		}
 	}
 	return sep;
+}
+
+/* home */
+
+static QString home_path;
+
+static void setup_home_path()
+{
+	if(home_path.isEmpty()){
+		home_path = QDir::homePath();
+		home_path.append(QChar('/'));
+	}
 }
 
 /* QString cache */
@@ -119,12 +133,10 @@ struct queried_item_t {
 	QString const *icon;
 };
 
-static QString const home_pattern = QStringLiteral("/home/");
-
 static bool lt(queried_item_t const &left, queried_item_t const &right)
 {
-	bool l_not_in_home = ! left.path.startsWith(home_pattern);
-	bool r_not_in_home = ! right.path.startsWith(home_pattern);
+	bool l_not_in_home = ! left.path.startsWith(home_path);
+	bool r_not_in_home = ! right.path.startsWith(home_path);
 	if(l_not_in_home != r_not_in_home){
 		return l_not_in_home < r_not_in_home;
 	}
@@ -212,6 +224,9 @@ LocateRunner::LocateRunner(
 	install_log_handler();
 	qDebug("%s: constructor.", log_name);
 #endif
+	
+	/* miscellany initialization */
+	setup_home_path();
 }
 
 void LocateRunner::reloadConfiguration()
@@ -242,11 +257,15 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	){
 		qsizetype sep = rfind_sep(iter->path);
 		if(sep >= 0){
+			QString dir_name = iter->path.left(sep);
+			if(iter->path.startsWith(home_path)){
+				dir_name.replace(0, home_path.size() - 1, QChar('~'));
+			}
 			double relevance = 0.25 * (1. - n / list->size()); /* keep sorted */
 			KRunner::QueryMatch match(this);
 			match.setId(QUrl::fromLocalFile(iter->path).toString());
 			match.setText(iter->path.right(iter->path.size() - (sep + 1)));
-			match.setSubtext(iter->path.left(sep));
+			match.setSubtext(dir_name);
 			match.setIconName(*iter->icon);
 			match.setRelevance(relevance);
 			context.addMatch(match);
