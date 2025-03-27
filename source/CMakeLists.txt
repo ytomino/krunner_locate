@@ -17,7 +17,10 @@ target_compile_features(
 
 target_link_libraries(
 	krunner_locate
-	Qt::Gui KF${QT_MAJOR_VERSION}::I18n KF${QT_MAJOR_VERSION}::Runner ICU::uc
+	Qt::Gui
+	KF${QT_MAJOR_VERSION}::I18n KF${QT_MAJOR_VERSION}::KIOWidgets
+	KF${QT_MAJOR_VERSION}::Runner
+	ICU::uc
 )
 
 install(
