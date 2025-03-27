@@ -69,12 +69,15 @@ static qsizetype rfind_sep(QStringView path)
 /* home */
 
 static QString home_path;
+static QString trash_path;
 
 static void setup_home_path()
 {
 	if(home_path.isEmpty()){
 		home_path = QDir::homePath();
 		home_path.append(QChar('/'));
+		trash_path = home_path;
+		trash_path.append(QStringLiteral(".local/share/Trash/"));
 	}
 }
 
@@ -204,9 +207,15 @@ static queried_list_t const *query_with_cache(query_t const *query)
 				}
 				if(icon != nullptr){
 					if(i->contains(QStringLiteral("/."))){
-						icon = &hidden_icon;
+						if(i->startsWith(trash_path)){
+							icon = nullptr;
+						}else{
+							icon = &hidden_icon;
+						}
 					}
-					iter->second->push_back(queried_item_t{*i, icon});
+					if(icon != nullptr){
+						iter->second->push_back(queried_item_t{*i, icon});
+					}
 				}
 			}
 		}
