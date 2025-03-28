@@ -10,6 +10,7 @@
 #include <sys/time.h>
 
 #include <QDir>
+#include <QFileInfo>
 
 #include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
@@ -173,17 +174,30 @@ static bool lt(queried_item_t const &left, queried_item_t const &right)
 	return false; /* std::list::sort preserves the order of equivalent elements */
 }
 
+static bool unexisting(queried_item_t const &x)
+{
+	return ! QFileInfo::exists(x.path);
+}
+
 typedef std::list<queried_item_t> queried_list_t;
-typedef std::map<query_t, std::unique_ptr<queried_list_t>> query_cache_t;
+
+static std::time_t const interval = 60;
+
+struct queried_t {
+	queried_list_t list;
+	std::time_t last_checked_time;
+};
+
+typedef std::map<query_t, std::unique_ptr<queried_t>> query_cache_t;
 static query_cache_t query_cache;
 
-static queried_list_t const *query_with_cache(query_t const *query)
+static queried_t const *query_with_cache(query_t const *query, std::time_t now)
 {
 	std::pair<query_cache_t::iterator, bool> emplaced =
 		query_cache.try_emplace(*query, nullptr);
 	query_cache_t::iterator iter = emplaced.first;
 	if(emplaced.second){
-		iter->second.reset(new queried_list_t);
+		iter->second.reset(new queried_t);
 		
 		QStringList const *list = locate_with_cache(&query->locate_query);
 		for(
@@ -215,12 +229,17 @@ static queried_list_t const *query_with_cache(query_t const *query)
 						}
 					}
 					if(icon != nullptr){
-						iter->second->push_back(queried_item_t{*i, icon});
+						iter->second->list.push_back(queried_item_t{*i, icon});
 					}
 				}
 			}
 		}
-		iter->second->sort(lt);
+		iter->second->list.sort(lt);
+		iter->second->last_checked_time = now;
+	}else if(now - iter->second->last_checked_time > interval){
+		/* remove the paths removed after those were cached */
+		iter->second->list.remove_if(unexisting);
+		iter->second->last_checked_time = now;
 	}
 	return iter->second.get();
 }
@@ -251,7 +270,6 @@ static int get_now(std::time_t *time)
 	return 0;
 }
 
-static std::time_t const interval = 60;
 static std::time_t last_locate_mtime = -1;
 static std::time_t last_use_time = -(interval + 1);
 
@@ -307,18 +325,20 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 #endif
 	
 	std::time_t now;
-	if(get_now(&now) == 0){
+	if(get_now(&now) != 0){
+		now = 0; /* error */
+	}else{
 		update_time(now);
 	}
 	
 	QByteArray query_utf8 = query_string.toUtf8();
 	query_t query;
 	parse_query(stringview_of_qbytearray(&query_utf8), &query);
-	queried_list_t const *list = query_with_cache(&query);
+	queried_t const *queried = query_with_cache(&query, now);
 	double n = 0.;
 	for(
-		queried_list_t::const_iterator iter = list->cbegin();
-		iter != list->cend();
+		queried_list_t::const_iterator iter = queried->list.cbegin();
+		iter != queried->list.cend();
 		++ iter
 	){
 		qsizetype sep = rfind_sep(iter->path);
@@ -328,7 +348,7 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 			if(iter->path.startsWith(home_path)){
 				dir_name.replace(0, home_path.size() - 1, QChar('~'));
 			}
-			double relevance = 0.25 * (1. - n / list->size()); /* keep sorted */
+			double relevance = 0.25 * (1. - n / queried->list.size()); /* keep sorted */
 			KRunner::QueryMatch match(this);
 			match.setId(url.toString());
 			match.setUrls(QList<QUrl>{url});
