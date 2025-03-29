@@ -68,6 +68,23 @@ static qsizetype rfind_sep(QStringView path)
 	return sep;
 }
 
+static std::size_t count_units(QStringView x, int position, int n)
+{
+	std::size_t result = 0;
+	int i = position;
+	int end = i + n;
+	while(i < end){
+		++ result;
+		QChar c = x[i];
+		if(c.isHighSurrogate()){ /* do not check low part because it is always valid */
+			i += 2;
+		}else{
+			++ i;
+		}
+	}
+	return result;
+}
+
 /* home */
 
 static QString home_path;
@@ -161,14 +178,18 @@ static bool lt(queried_item_t const &left, queried_item_t const &right)
 		return false; /* something wrong */
 	}
 	
-	std::size_t l_base_name_length = left.path.size() - (l_sep + 1);
-	std::size_t r_base_name_length = right.path.size() - (r_sep + 1);
-	if(l_base_name_length != r_base_name_length){
-		return l_base_name_length < r_base_name_length;
+	std::size_t l_base_name_count =
+		count_units(left.path, l_sep + 1, left.path.size() - (l_sep + 1));
+	std::size_t r_base_name_count =
+		count_units(right.path, r_sep + 1, right.path.size() - (r_sep + 1));
+	if(l_base_name_count != r_base_name_count){
+		return l_base_name_count < r_base_name_count;
 	}
 	
-	if(l_sep != r_sep){
-		return l_sep < r_sep;
+	std::size_t l_dir_name_count = count_units(left.path, 0, l_sep);
+	std::size_t r_dir_name_count = count_units(right.path, 0, r_sep);
+	if(l_dir_name_count != r_dir_name_count){
+		return l_dir_name_count < r_dir_name_count;
 	}
 	
 	return false;
