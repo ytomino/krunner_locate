@@ -3,7 +3,7 @@
 #include "use_locate.hxx"
 
 #include <cstdio>
-#include <list>
+#include <forward_list>
 #include <map>
 #include <set>
 
@@ -171,7 +171,8 @@ static bool lt(queried_item_t const &left, queried_item_t const &right)
 		return l_sep < r_sep;
 	}
 	
-	return false; /* std::list::sort preserves the order of equivalent elements */
+	return false;
+		/* std::forward_list::sort preserves the order of equivalent elements */
 }
 
 static bool unexisting(queried_item_t const &x)
@@ -179,12 +180,13 @@ static bool unexisting(queried_item_t const &x)
 	return ! QFileInfo::exists(x.path);
 }
 
-typedef std::list<queried_item_t> queried_list_t;
+typedef std::forward_list<queried_item_t> queried_list_t;
 
 static std::time_t const interval = 60;
 
 struct queried_t {
 	queried_list_t list;
+	std::size_t max_length;
 	std::time_t last_checked_time;
 };
 
@@ -229,12 +231,14 @@ static queried_t const *query_with_cache(query_t const *query, std::time_t now)
 						}
 					}
 					if(icon != nullptr){
-						iter->second->list.push_back(queried_item_t{*i, icon});
+						iter->second->list.push_front(queried_item_t{*i, icon});
 					}
 				}
 			}
 		}
+		iter->second->list.reverse();
 		iter->second->list.sort(lt);
+		iter->second->max_length = list->size();
 		iter->second->last_checked_time = now;
 	}else if(now - iter->second->last_checked_time > interval){
 		/* remove the paths removed after those were cached */
@@ -348,7 +352,7 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 			if(iter->path.startsWith(home_path)){
 				dir_name.replace(0, home_path.size() - 1, QChar('~'));
 			}
-			double relevance = 0.25 * (1. - n / queried->list.size()); /* keep sorted */
+			double relevance = 0.25 * (1. - n / queried->max_length); /* keep sorted */
 			KRunner::QueryMatch match(this);
 			match.setId(url.toString());
 			match.setUrls(QList<QUrl>{url});
