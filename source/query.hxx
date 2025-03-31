@@ -24,6 +24,9 @@ struct query_t {
 	bool absolute;
 	file_type_filter_t file_type_filter;
 	
+	query_t() = default;
+	query_t(query_t &&) = default;
+	
 	friend std::strong_ordering operator <=> (
 		query_t const &left, query_t const &right
 	) = default;

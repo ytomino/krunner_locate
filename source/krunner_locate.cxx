@@ -214,15 +214,15 @@ struct queried_t {
 typedef std::map<query_t, std::unique_ptr<queried_t>> query_cache_t;
 static query_cache_t query_cache;
 
-static queried_t const *query_with_cache(query_t const *query, std::time_t now)
+static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 {
 	std::pair<query_cache_t::iterator, bool> emplaced =
-		query_cache.try_emplace(*query, nullptr);
+		query_cache.try_emplace(std::move(query), nullptr);
 	query_cache_t::iterator iter = emplaced.first;
 	if(emplaced.second){
 		iter->second.reset(new queried_t);
 		
-		QStringList const *list = locate_with_cache(&query->locate_query);
+		QStringList const *list = locate_with_cache(&iter->first.locate_query);
 		for(
 			QStringList::const_iterator i = list->cbegin();
 			i != list->cend();
@@ -230,7 +230,7 @@ static queried_t const *query_with_cache(query_t const *query, std::time_t now)
 		){
 			QByteArray utf8 = i->toUtf8();
 			filtered_status_t filtered_status =
-				filter_query(stringview_of_qbytearray(&utf8), query);
+				filter_query(stringview_of_qbytearray(&utf8), &iter->first);
 			if(filtered_status != fs_error){
 				QString const *icon;
 				switch(filtered_status){
@@ -359,7 +359,7 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	QByteArray query_utf8 = query_string.toUtf8();
 	query_t query;
 	parse_query(stringview_of_qbytearray(&query_utf8), &query);
-	queried_t const *queried = query_with_cache(&query, now);
+	queried_t const *queried = query_with_cache(std::move(query), now);
 	double n = 0.;
 	for(
 		queried_list_t::const_iterator iter = queried->list.cbegin();
