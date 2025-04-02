@@ -17,7 +17,7 @@
 #include <KIO/OpenUrlJob>
 #include <krunner_version.h>
 
-static char const log_name[] = "krunner_locate";
+static char const (log_name [[maybe_unused]])[] = "krunner_locate";
 
 //#define LOGGING
 #ifdef LOGGING
