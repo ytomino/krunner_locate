@@ -16,6 +16,12 @@ KDE Frameworks >= 5.103
  - libkf5i18n-dev
  - libkf5kio-dev
  - libkf5runner-dev
+plocate
+ https://plocate.sesse.net/
+Or mlocate
+ https://pagure.io/mlocate
+Or findutils
+ https://savannah.gnu.org/projects/findutils/
 
 Install
 -------
