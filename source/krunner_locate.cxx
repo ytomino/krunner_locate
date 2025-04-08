@@ -116,24 +116,22 @@ static QString get_unique_qstring(QString &&value)
 
 /* locate cache */
 
-typedef std::map<locate_query_t, std::unique_ptr<QStringList>> locate_cache_t;
+typedef std::map<locate_query_t, QStringList> locate_cache_t;
 static locate_cache_t locate_cache;
 
 static QStringList const *locate_with_cache(locate_query_t const *locate_query)
 {
 	std::pair<locate_cache_t::iterator, bool> emplaced =
-		locate_cache.try_emplace(*locate_query, nullptr);
+		locate_cache.try_emplace(*locate_query);
 	locate_cache_t::iterator iter = emplaced.first;
 	if(emplaced.second){
-		iter->second.reset(new QStringList);
-		
 		int status;
 		int error = locate(
 			locate_query->pattern,
 			locate_query->base_name,
 			locate_query->ignore_case,
 			[iter](std::string_view item){
-				iter->second->append(
+				iter->second.append(
 					get_unique_qstring(QString::fromUtf8(item.data(), item.size()))
 				);
 				return 0;
@@ -141,10 +139,10 @@ static QStringList const *locate_with_cache(locate_query_t const *locate_query)
 			&status
 		);
 		if(error != 0){
-			iter->second->clear();
+			iter->second.clear();
 		}
 	}
-	return iter->second.get();
+	return &iter->second;
 }
 
 /* query cache */
@@ -209,19 +207,20 @@ struct queried_t {
 	queried_list_t list;
 	std::size_t max_length;
 	std::time_t last_checked_time;
+	
+	queried_t() = default;
+	queried_t(queried_t &&) = default;
 };
 
-typedef std::map<query_t, std::unique_ptr<queried_t>> query_cache_t;
+typedef std::map<query_t, queried_t> query_cache_t;
 static query_cache_t query_cache;
 
 static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 {
 	std::pair<query_cache_t::iterator, bool> emplaced =
-		query_cache.try_emplace(std::move(query), nullptr);
+		query_cache.try_emplace(std::move(query));
 	query_cache_t::iterator iter = emplaced.first;
 	if(emplaced.second){
-		iter->second.reset(new queried_t);
-		
 		QStringList const *list = locate_with_cache(&iter->first.locate_query);
 		for(
 			QStringList::const_iterator i = list->cbegin();
@@ -252,21 +251,21 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 						}
 					}
 					if(icon != nullptr){
-						iter->second->list.push_front(queried_item_t{*i, icon});
+						iter->second.list.push_front(queried_item_t{*i, icon});
 					}
 				}
 			}
 		}
-		iter->second->list.reverse();
-		iter->second->list.sort(lt);
-		iter->second->max_length = list->size();
-		iter->second->last_checked_time = now;
-	}else if(now - iter->second->last_checked_time > interval){
+		iter->second.list.reverse();
+		iter->second.list.sort(lt);
+		iter->second.max_length = list->size();
+		iter->second.last_checked_time = now;
+	}else if(now - iter->second.last_checked_time > interval){
 		/* remove the paths removed after those were cached */
-		iter->second->list.remove_if(unexisting);
-		iter->second->last_checked_time = now;
+		iter->second.list.remove_if(unexisting);
+		iter->second.last_checked_time = now;
 	}
-	return iter->second.get();
+	return &iter->second;
 }
 
 static void clear_cache()
