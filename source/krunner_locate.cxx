@@ -139,9 +139,10 @@ static QStringList const *locate_with_cache(locate_query_t const *locate_query)
 			locate_query->base_name,
 			locate_query->ignore_case,
 			[iter](std::string_view item){
-				iter->second.append(
-					get_unique_qstring(QString::fromUtf8(item.data(), item.size()))
-				);
+				QString string = QString::fromUtf8(item.data(), item.size());
+				if(! excluded(string)){
+					iter->second.append(get_unique_qstring(std::move(string)));
+				}
 				return 0;
 			},
 			&status
@@ -252,15 +253,9 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 				}
 				if(icon != nullptr){
 					if(i->contains(QStringLiteral("/."))){
-						if(excluded(*i)){
-							icon = nullptr;
-						}else{
-							icon = &hidden_icon;
-						}
+						icon = &hidden_icon;
 					}
-					if(icon != nullptr){
-						iter->second.list.push_front(queried_item_t{*i, icon});
-					}
+					iter->second.list.push_front(queried_item_t{*i, icon});
 				}
 			}
 		}
