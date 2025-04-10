@@ -284,22 +284,26 @@ static int get_now(std::time_t *time)
 }
 
 static std::time_t last_locate_mtime = -1;
+
+static void check_locate_mtime()
+{
+	std::time_t mtime;
+	if(locate_mtime(&mtime) != 0){
+		return; /* error */
+	}
+	if(mtime != last_locate_mtime){ /* updatedb is executed */
+		clear_cache();
+		last_locate_mtime = mtime;
+	}
+}
+
 static std::time_t last_use_time = -(interval + 1);
 
-static void update_time(std::time_t now)
+static bool update_time(std::time_t now)
 {
 	std::time_t old = last_use_time;
 	last_use_time = now;
-	if(now - old > interval){
-		std::time_t mtime;
-		if(locate_mtime(&mtime) != 0){
-			return; /* error */
-		}
-		if(mtime != last_locate_mtime){ /* updatedb is executed */
-			clear_cache();
-			last_locate_mtime = mtime;
-		}
-	}
+	return now - old > interval;
 }
 
 /* LocateRunner */
@@ -341,7 +345,9 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	if(get_now(&now) != 0){
 		now = 0; /* error */
 	}else{
-		update_time(now);
+		if(update_time(now)){
+			check_locate_mtime();
+		}
 	}
 	
 	QByteArray query_utf8 = query_string.toUtf8();
