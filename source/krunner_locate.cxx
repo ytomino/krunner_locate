@@ -89,6 +89,7 @@ static std::size_t count_units(QStringView x, int position, int n)
 
 static QString home_path;
 static QString trash_path;
+static QString recent_documents_path;
 
 static void setup_home_path()
 {
@@ -97,7 +98,14 @@ static void setup_home_path()
 		home_path.append(QChar('/'));
 		trash_path = home_path;
 		trash_path.append(QStringLiteral(".local/share/Trash/"));
+		recent_documents_path = home_path;
+		recent_documents_path.append(QStringLiteral(".local/share/RecentDocuments/"));
 	}
+}
+
+static bool excluded(QStringView path)
+{
+	return path.startsWith(trash_path) || path.startsWith(recent_documents_path);
 }
 
 /* QString cache */
@@ -244,7 +252,7 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 				}
 				if(icon != nullptr){
 					if(i->contains(QStringLiteral("/."))){
-						if(i->startsWith(trash_path)){
+						if(excluded(*i)){
 							icon = nullptr;
 						}else{
 							icon = &hidden_icon;
