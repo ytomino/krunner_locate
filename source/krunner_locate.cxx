@@ -156,45 +156,43 @@ static QStringList const *locate_with_cache(locate_query_t const *locate_query)
 
 /* query cache */
 
-static QString const regular_icon = QStringLiteral("document-open-symbolic");
-static QString const dir_icon = QStringLiteral("folder-open-symbolic");
 static QString const hidden_icon = QStringLiteral("view-hidden");
 
-struct queried_item_t {
-	QString path;
-	QString const *icon;
-};
-
-static bool lt(queried_item_t const &left, queried_item_t const &right)
+static bool hidden(QStringView path)
 {
-	bool l_not_in_home = ! left.path.startsWith(home_path);
-	bool r_not_in_home = ! right.path.startsWith(home_path);
+	return path.contains(QStringLiteral("/."));
+}
+
+static bool lt(QString const &left, QString const &right)
+{
+	bool l_not_in_home = ! left.startsWith(home_path);
+	bool r_not_in_home = ! right.startsWith(home_path);
 	if(l_not_in_home != r_not_in_home){
 		return l_not_in_home < r_not_in_home;
 	}
 	
-	bool l_hidden = left.icon == &hidden_icon;
-	bool r_hidden = right.icon == &hidden_icon;
+	bool l_hidden = hidden(left);
+	bool r_hidden = hidden(right);
 	if(l_hidden != r_hidden){
 		return l_hidden < r_hidden;
 	}
 	
-	qsizetype l_sep = rfind_sep(left.path);
-	qsizetype r_sep = rfind_sep(right.path);
+	qsizetype l_sep = rfind_sep(left);
+	qsizetype r_sep = rfind_sep(right);
 	if(l_sep < 0 || r_sep < 0){
 		return false; /* something wrong */
 	}
 	
 	std::size_t l_base_name_count =
-		count_units(left.path, l_sep + 1, left.path.size() - (l_sep + 1));
+		count_units(left, l_sep + 1, left.size() - (l_sep + 1));
 	std::size_t r_base_name_count =
-		count_units(right.path, r_sep + 1, right.path.size() - (r_sep + 1));
+		count_units(right, r_sep + 1, right.size() - (r_sep + 1));
 	if(l_base_name_count != r_base_name_count){
 		return l_base_name_count < r_base_name_count;
 	}
 	
-	std::size_t l_dir_name_count = count_units(left.path, 0, l_sep);
-	std::size_t r_dir_name_count = count_units(right.path, 0, r_sep);
+	std::size_t l_dir_name_count = count_units(left, 0, l_sep);
+	std::size_t r_dir_name_count = count_units(right, 0, r_sep);
 	if(l_dir_name_count != r_dir_name_count){
 		return l_dir_name_count < r_dir_name_count;
 	}
@@ -203,12 +201,12 @@ static bool lt(queried_item_t const &left, queried_item_t const &right)
 		/* std::forward_list::sort preserves the order of equivalent elements */
 }
 
-static bool unexisting(queried_item_t const &x)
+static bool unexisting(QString const &x)
 {
-	return ! QFileInfo::exists(x.path);
+	return ! QFileInfo::exists(x);
 }
 
-typedef std::forward_list<queried_item_t> queried_list_t;
+typedef std::forward_list<QString> queried_list_t;
 
 static std::time_t const interval = 60;
 
@@ -239,24 +237,12 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 			QByteArray utf8 = i->toUtf8();
 			filtered_status_t filtered_status =
 				filter_query(stringview_of_qbytearray(&utf8), &iter->first);
-			if(filtered_status != fs_error){
-				QString const *icon;
-				switch(filtered_status){
-				case fs_regular:
-					icon = &regular_icon;
-					break;
-				case fs_directory:
-					icon = &dir_icon;
-					break;
-				default:
-					icon = nullptr;
-				}
-				if(icon != nullptr){
-					if(i->contains(QStringLiteral("/."))){
-						icon = &hidden_icon;
-					}
-					iter->second.list.push_front(queried_item_t{*i, icon});
-				}
+			switch(filtered_status){
+			case fs_regular: case fs_directory:
+				iter->second.list.push_front(*i);
+				break;
+			default: /* fs_error, fs_other */
+				;
 			}
 		}
 		iter->second.list.reverse();
@@ -368,20 +354,20 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 		iter != queried->list.cend();
 		++ iter
 	){
-		qsizetype sep = rfind_sep(iter->path);
+		qsizetype sep = rfind_sep(*iter);
 		if(sep >= 0){
-			QUrl url = QUrl::fromLocalFile(iter->path);
-			QString dir_name = iter->path.left(sep);
-			if(iter->path.startsWith(home_path)){
+			QUrl url = QUrl::fromLocalFile(*iter);
+			QString dir_name = iter->left(sep);
+			if(iter->startsWith(home_path)){
 				dir_name.replace(0, home_path.size() - 1, QChar('~'));
 			}
 			double relevance = 0.25 * (1. - n / queried->max_length); /* keep sorted */
 			KRunner::QueryMatch match(this);
 			match.setId(url.toString());
 			match.setUrls(QList<QUrl>{url});
-			match.setText(iter->path.right(iter->path.size() - (sep + 1)));
+			match.setText(iter->right(iter->size() - (sep + 1)));
 			match.setSubtext(dir_name);
-			match.setIconName(*iter->icon);
+			match.setIconName(hidden(*iter) ? hidden_icon : KIO::iconNameForUrl(url));
 			match.setRelevance(relevance);
 			match.setActions(this->actions);
 			context.addMatch(match);
