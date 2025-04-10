@@ -2,6 +2,7 @@
 #include "query.hxx"
 #include "use_locate.hxx"
 
+#include <algorithm>
 #include <cstdio>
 #include <forward_list>
 #include <map>
@@ -257,12 +258,71 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 	return &iter->second;
 }
 
+/* icon cache */
+
+struct icon_t {
+	QString icon_name;
+	std::time_t last_checked_time;
+	
+	icon_t() = default;
+	icon_t(icon_t &&) = default;
+};
+
+typedef std::map<QString, icon_t> icon_cache_t;
+static icon_cache_t icon_cache;
+
+static QString const &icon_with_cache(
+	QString const &path, QUrl const &url, std::time_t now
+)
+{
+	if(hidden(path)){
+		return hidden_icon;
+	}else{
+		std::pair<icon_cache_t::iterator, bool> emplaced =
+			icon_cache.try_emplace(std::move(path));
+		icon_cache_t::iterator iter = emplaced.first;
+		if(emplaced.second){ /* || now - iter->second.last_checked_time > interval */
+			iter->second.icon_name = get_unique_qstring(KIO::iconNameForUrl(url));
+			iter->second.last_checked_time = now;
+			
+#ifdef LOGGING
+			qDebug(
+				"%s: icon_with_cache: %s, %s",
+				log_name, qPrintable(path), qPrintable(iter->second.icon_name)
+			);
+#endif
+		}
+		return iter->second.icon_name;
+	}
+}
+
+static void clear_old_icon_cache(std::time_t now)
+{
+#ifdef LOGGING
+	icon_cache_t::size_type old_size = icon_cache.size();
+#endif
+	
+	std::erase_if(
+		icon_cache,
+		[now](icon_cache_t::value_type const &item){
+			return now - item.second.last_checked_time > interval;
+		}
+	);
+	
+#ifdef LOGGING
+	if(icon_cache.size() != old_size){
+		qDebug("%s: clear_old_icon_cache.", log_name);
+	}
+#endif
+}
+
 static void clear_cache()
 {
 #ifdef LOGGING
 	qDebug("%s: clear_cache.", log_name);
 #endif
 	
+	icon_cache.clear();
 	query_cache.clear();
 	locate_cache.clear();
 	qstring_cache.clear();
@@ -285,16 +345,18 @@ static int get_now(std::time_t *time)
 
 static std::time_t last_locate_mtime = -1;
 
-static void check_locate_mtime()
+static bool check_locate_mtime()
 {
 	std::time_t mtime;
 	if(locate_mtime(&mtime) != 0){
-		return; /* error */
+		return false; /* error */
 	}
-	if(mtime != last_locate_mtime){ /* updatedb is executed */
+	bool modified = mtime != last_locate_mtime;
+	if(modified){ /* updatedb is executed */
 		clear_cache();
 		last_locate_mtime = mtime;
 	}
+	return modified;
 }
 
 static std::time_t last_use_time = -(interval + 1);
@@ -345,8 +407,14 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	if(get_now(&now) != 0){
 		now = 0; /* error */
 	}else{
+		bool cleared;
 		if(update_time(now)){
-			check_locate_mtime();
+			cleared = check_locate_mtime();
+		}else{
+			cleared = false;
+		}
+		if(! cleared){
+			clear_old_icon_cache(now);
 		}
 	}
 	
@@ -373,7 +441,7 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 			match.setUrls(QList<QUrl>{url});
 			match.setText(iter->right(iter->size() - (sep + 1)));
 			match.setSubtext(dir_name);
-			match.setIconName(hidden(*iter) ? hidden_icon : KIO::iconNameForUrl(url));
+			match.setIconName(icon_with_cache(*iter, url, now));
 			match.setRelevance(relevance);
 			match.setActions(this->actions);
 			context.addMatch(match);
