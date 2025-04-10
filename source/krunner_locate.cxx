@@ -115,7 +115,7 @@ typedef std::set<QString> QString_set_t;
 
 static QString_set_t qstring_cache;
 
-static QString get_unique_qstring(QString &&value)
+static QString const &get_unique_qstring(QString &&value)
 {
 	std::pair<QString_set_t::iterator, bool> emplaced =
 		qstring_cache.emplace(std::move(value));
