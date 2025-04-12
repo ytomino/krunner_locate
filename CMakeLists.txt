@@ -1,7 +1,19 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(krunner_locate)
-set(CMAKE_PROJECT_VERSION "0.1.0")
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/version.txt version)
+string(STRIP ${version} version)
+project(krunner_locate VERSION ${version})
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+	execute_process(
+		COMMAND git -C ${CMAKE_CURRENT_SOURCE_DIR} log -1 --format=%h
+		OUTPUT_VARIABLE githead
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+	)
+	set(VERSION_STRING ${version}-git${githead})
+else()
+	set(VERSION_STRING ${version})
+endif()
 
 set(QT_MIN_VERSION 5.15.0)
 set(KF_MIN_VERSION 5.103.0)

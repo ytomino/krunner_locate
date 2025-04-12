@@ -9,7 +9,7 @@
 		"Icon": "find-location",
 		"License": "LGPL 3",
 		"Name": "Locate",
-		"Version": "@CMAKE_PROJECT_VERSION@"
+		"Version": "@VERSION_STRING@"
 	},
 	"X-Plasma-Runner-Unique-Results": true
 }
