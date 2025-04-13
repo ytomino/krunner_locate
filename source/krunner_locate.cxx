@@ -125,10 +125,11 @@ static QString const &get_unique_qstring(QString &&value)
 
 /* locate cache */
 
-typedef std::map<locate_query_t, QStringList> locate_cache_t;
+typedef std::map<locate_query_t, std::forward_list<QString>> locate_cache_t;
 static locate_cache_t locate_cache;
 
-static QStringList const *locate_with_cache(locate_query_t const *locate_query)
+static std::forward_list<QString> const *locate_with_cache(
+	locate_query_t const *locate_query)
 {
 	std::pair<locate_cache_t::iterator, bool> emplaced =
 		locate_cache.try_emplace(*locate_query);
@@ -142,7 +143,8 @@ static QStringList const *locate_with_cache(locate_query_t const *locate_query)
 			[iter](std::string_view item){
 				QString string = QString::fromUtf8(item.data(), item.size());
 				if(! excluded(string)){
-					iter->second.append(get_unique_qstring(std::move(string)));
+					iter->second.push_front(get_unique_qstring(std::move(string)));
+						/* descending order */
 				}
 				return 0;
 			},
@@ -207,12 +209,10 @@ static bool unexisting(QString const &x)
 	return ! QFileInfo::exists(x);
 }
 
-typedef std::forward_list<QString> queried_list_t;
-
 static std::time_t const interval = 60;
 
 struct queried_t {
-	queried_list_t list;
+	std::forward_list<QString> list;
 	std::size_t max_length;
 	std::time_t last_checked_time;
 	
@@ -229,9 +229,11 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 		query_cache.try_emplace(std::move(query));
 	query_cache_t::iterator iter = emplaced.first;
 	if(emplaced.second){
-		QStringList const *list = locate_with_cache(&iter->first.locate_query);
+		std::forward_list<QString> const *list =
+			locate_with_cache(&iter->first.locate_query);
+		std::size_t n = 0;
 		for(
-			QStringList::const_iterator i = list->cbegin();
+			std::forward_list<QString>::const_iterator i = list->cbegin();
 			i != list->cend();
 			++ i
 		){
@@ -240,15 +242,15 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 				filter_query(stringview_of_qbytearray(&utf8), &iter->first);
 			switch(filtered_status){
 			case fs_regular: case fs_directory:
-				iter->second.list.push_front(*i);
+				iter->second.list.push_front(*i); /* ascending order */
+				++ n;
 				break;
 			default: /* fs_error, fs_other */
 				;
 			}
 		}
-		iter->second.list.reverse();
 		iter->second.list.sort(lt);
-		iter->second.max_length = list->size();
+		iter->second.max_length = n;
 		iter->second.last_checked_time = now;
 	}else if(now - iter->second.last_checked_time > interval){
 		/* remove the paths removed after those were cached */
@@ -424,7 +426,7 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	queried_t const *queried = query_with_cache(std::move(query), now);
 	double n = 0.;
 	for(
-		queried_list_t::const_iterator iter = queried->list.cbegin();
+		std::forward_list<QString>::const_iterator iter = queried->list.cbegin();
 		iter != queried->list.cend();
 		++ iter
 	){
