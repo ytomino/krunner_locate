@@ -396,6 +396,7 @@ void LocateRunner::reloadConfiguration()
 #endif
 	
 	this->setMatchRegex(QRegularExpression(QStringLiteral("[*./?]")));
+	this->setMinLetterCount(2);
 }
 
 void LocateRunner::match(KRunner::RunnerContext &context)
