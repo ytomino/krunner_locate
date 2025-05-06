@@ -51,8 +51,8 @@ static int spawn_locate(
 	int error;
 	
 	/* argv */
-	char *c_pattern = strndup(pattern.data(), pattern.size());
-		/* strndup adds '\0' */
+	char *c_pattern = strndupa(pattern.data(), pattern.size());
+		/* strndup(a) adds '\0' */
 	char const *argv[9];
 	int argc = 0;
 	argv[argc ++] = locate_path;
@@ -73,12 +73,10 @@ static int spawn_locate(
 	/* file_actions */
 	posix_spawn_file_actions_t file_actions;
 	if((error = posix_spawn_file_actions_init(&file_actions)) != 0){
-		std::free(c_pattern);
 		return error;
 	}
 	if((error = posix_spawn_file_actions_adddup2(&file_actions, outfd, 1)) != 0){
 		posix_spawn_file_actions_destroy(&file_actions);
-		std::free(c_pattern);
 		return error;
 	}
 	
@@ -88,7 +86,6 @@ static int spawn_locate(
 			pid, argv[0], &file_actions, nullptr, const_cast<char * const *>(argv), environ
 		);
 	posix_spawn_file_actions_destroy(&file_actions);
-	std::free(c_pattern);
 	return error;
 }
 
