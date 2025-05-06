@@ -281,7 +281,7 @@ static QString const &icon_with_cache(
 		return hidden_icon;
 	}else{
 		std::pair<icon_cache_t::iterator, bool> emplaced =
-			icon_cache.try_emplace(std::move(path));
+			icon_cache.try_emplace(path);
 		icon_cache_t::iterator iter = emplaced.first;
 		if(emplaced.second){ /* || now - iter->second.last_checked_time > interval */
 			iter->second.icon_name = get_unique_qstring(KIO::iconNameForUrl(url));
