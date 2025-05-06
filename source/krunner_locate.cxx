@@ -30,7 +30,7 @@ static void log_handler(
 )
 {
 	FILE *f = std::fopen("/tmp/krunner.log", "a");
-	if(f != NULL){
+	if(f != nullptr){
 		QString const message = qFormatLogMessage(type, context, str);
 		std::fprintf(f, "%s\n", qPrintable(message));
 		std::fclose(f);
