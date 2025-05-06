@@ -372,12 +372,16 @@ static bool update_time(std::time_t now)
 
 /* LocateRunner */
 
+static QString const open_folder_icon = QStringLiteral("document-open-folder");
+
 LocateRunner::LocateRunner(
 	QObject *parent, KPluginMetaData const &pluginMetaData,
 	QVariantList const &args
 )
 	: KRunner::AbstractRunner(parent, pluginMetaData, args),
-		open_containing_folder_action(QStringLiteral("Open Containing Folder")),
+		open_containing_folder_action(
+			QIcon::fromTheme(open_folder_icon), QStringLiteral("Open Containing Folder")
+		),
 		actions{&this->open_containing_folder_action}
 {
 #ifdef LOGGING
