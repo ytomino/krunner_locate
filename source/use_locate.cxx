@@ -186,7 +186,7 @@ int locate(
 
 static int do_stat(char const *path, struct stat *buf)
 {
-	while(lstat(path, buf) < 0){
+	while(stat(path, buf) < 0){
 		int error;
 		if((error = errno) != EINTR) return nonzero_errno(error);
 	}
