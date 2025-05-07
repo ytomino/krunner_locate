@@ -34,8 +34,7 @@ struct query_t {
 
 void parse_query(std::string_view pattern, query_t *result);
 
-enum filtered_status_t {fs_error, fs_regular, fs_directory, fs_other};
-
-filtered_status_t filter_query(std::string_view item, query_t const *query);
+bool filter_query(std::string_view item, query_t const *query);
+bool refilter_query(std::string_view item, query_t const *query);
 
 #endif

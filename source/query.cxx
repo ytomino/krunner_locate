@@ -80,23 +80,20 @@ static bool do_fnmatch(
 	return false;
 }
 
-static filtered_status_t do_stat(char const *c_item)
+static bool filter_by_stat(char const *c_item, bool only_dir)
 {
 	struct stat statbuf;
 	while(lstat(c_item, &statbuf) < 0){
-		if(errno != EINTR) return fs_error;
+		if(errno != EINTR) return false;
 	}
-	switch(statbuf.st_mode & S_IFMT){
-	case S_IFREG:
-		return fs_regular;
-	case S_IFDIR:
-		return fs_directory;
-	default:
-		return fs_other;
+	mode_t type = statbuf.st_mode & S_IFMT;
+	if(only_dir && type != S_IFDIR){
+		return false;
 	}
+	return type == S_IFREG || type == S_IFDIR;
 }
 
-filtered_status_t filter_query(std::string_view item, query_t const *query)
+bool filter_query(std::string_view item, query_t const *query)
 {
 	std::size_t item_length = item.size();
 	char *c_item = static_cast<char *>(alloca(item_length + 1));
@@ -115,7 +112,7 @@ filtered_status_t filter_query(std::string_view item, query_t const *query)
 		char const *begin = c_item;
 		if(query->locate_query.base_name){
 			if(*begin != '/'){
-				return fs_error;
+				return false;
 			}
 			++ begin;
 		}
@@ -124,7 +121,7 @@ filtered_status_t filter_query(std::string_view item, query_t const *query)
 				pattern_length, c_pattern, begin, query->locate_query.ignore_case, only_dir
 			)
 		){
-			return fs_error;
+			return false;
 		}
 	}else if(! query->locate_query.base_name || only_dir){
 		bool matched = false;
@@ -142,16 +139,24 @@ filtered_status_t filter_query(std::string_view item, query_t const *query)
 			}
 		}
 		if(! matched){
-			return fs_error;
+			return false;
 		}
 	}
 	
 	/* file type */
-	filtered_status_t filtered_status = do_stat(c_item);
-	if(only_dir && filtered_status != fs_directory){
-		return fs_error;
-	}
-	return filtered_status;
+	return filter_by_stat(c_item, only_dir);
+}
+
+bool refilter_query(std::string_view item, query_t const *query)
+{
+	std::size_t item_length = item.size();
+	char *c_item = static_cast<char *>(alloca(item_length + 1));
+	std::memcpy(c_item, item.data(), item_length);
+	c_item[item_length] = '\0';
+	
+	bool only_dir = query->file_type_filter == ftf_only_dir;
+	
+	return filter_by_stat(c_item, only_dir);
 }
 
 /* ICU */

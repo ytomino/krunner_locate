@@ -82,7 +82,7 @@ int main(int argc, char const * const *argv)
 			query.locate_query.base_name,
 			query.locate_query.ignore_case,
 			[&query](std::string_view item){
-				if(filter_query(item, &query) != fs_error){
+				if(filter_query(item, &query)){
 					std::printf("%.*s\n", static_cast<int>(item.size()), item.data());
 				}
 				return 0;

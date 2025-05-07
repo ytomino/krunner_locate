@@ -11,7 +11,6 @@
 #include <sys/time.h>
 
 #include <QDir>
-#include <QFileInfo>
 
 #include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
@@ -204,11 +203,6 @@ static bool lt(QString const &left, QString const &right)
 		/* std::forward_list::sort preserves the order of equivalent elements */
 }
 
-static bool unexisting(QString const &x)
-{
-	return ! QFileInfo::exists(x);
-}
-
 static std::time_t const interval = 60;
 
 struct queried_t {
@@ -238,15 +232,9 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 			++ i
 		){
 			QByteArray utf8 = i->toUtf8();
-			filtered_status_t filtered_status =
-				filter_query(stringview_of_qbytearray(&utf8), &iter->first);
-			switch(filtered_status){
-			case fs_regular: case fs_directory:
+			if(filter_query(stringview_of_qbytearray(&utf8), &iter->first)){
 				iter->second.list.push_front(*i); /* ascending order */
 				++ n;
-				break;
-			default: /* fs_error, fs_other */
-				;
 			}
 		}
 		iter->second.list.sort(lt);
@@ -254,7 +242,12 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 		iter->second.last_checked_time = now;
 	}else if(now - iter->second.last_checked_time > interval){
 		/* remove the paths removed after those were cached */
-		iter->second.list.remove_if(unexisting);
+		iter->second.list.remove_if(
+			[&query](QString const &item){
+				QByteArray utf8 = item.toUtf8();
+				return ! refilter_query(stringview_of_qbytearray(&utf8), &query);
+			}
+		);
 		iter->second.last_checked_time = now;
 	}
 	return &iter->second;
