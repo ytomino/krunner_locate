@@ -56,18 +56,6 @@ static std::string_view stringview_of_qbytearray(QByteArray const *x)
 	);
 }
 
-static qsizetype rfind_sep(QStringView path)
-{
-	qsizetype sep = -1;
-	for(qsizetype i = path.size() - 1; i >= 0; --i){
-		if(path[static_cast<uint>(i)] == u'/'){
-			sep = i;
-			break;
-		}
-	}
-	return sep;
-}
-
 static std::size_t count_units(QStringView x, int position, int n)
 {
 	std::size_t result = 0;
@@ -179,8 +167,8 @@ static bool lt(QString const &left, QString const &right)
 		return l_hidden < r_hidden;
 	}
 	
-	qsizetype l_sep = rfind_sep(left);
-	qsizetype r_sep = rfind_sep(right);
+	int l_sep = left.lastIndexOf(u'/');
+	int r_sep = right.lastIndexOf(u'/');
 	if(l_sep < 0 || r_sep < 0){
 		return false; /* something wrong */
 	}
@@ -428,7 +416,7 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 		iter != queried->list.cend();
 		++ iter
 	){
-		qsizetype sep = rfind_sep(*iter);
+		int sep = iter->lastIndexOf(u'/');
 		if(sep >= 0){
 			QUrl url = QUrl::fromLocalFile(*iter);
 			QString dir_name = iter->left(sep);
