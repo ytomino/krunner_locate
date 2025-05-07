@@ -56,66 +56,51 @@ static std::string_view stringview_of_qbytearray(QByteArray const *x)
 	);
 }
 
-static std::size_t count_units(QStringView x, int position, int n)
-{
-	std::size_t result = 0;
-	int i = position;
-	int end = i + n;
-	while(i < end){
-		++ result;
-		QChar c = x[i];
-		if(c.isHighSurrogate()){ /* do not check low part because it is always valid */
-			i += 2;
-		}else{
-			++ i;
-		}
-	}
-	return result;
-}
-
 /* home */
 
-static QString home_path;
-static QString trash_path;
-static QString recent_documents_path;
+static QByteArray home_path;
+static QByteArray trash_path;
+static QByteArray recent_documents_path;
 
 static void setup_home_path()
 {
 	if(home_path.isEmpty()){
-		home_path = QDir::homePath();
+		home_path = QDir::homePath().toUtf8();
 		home_path.append(u'/');
 		trash_path = home_path;
-		trash_path.append(QStringLiteral(".local/share/Trash/"));
+		trash_path.append(QByteArrayLiteral(".local/share/Trash/"));
 		recent_documents_path = home_path;
-		recent_documents_path.append(QStringLiteral(".local/share/RecentDocuments/"));
+		recent_documents_path.append(
+			QByteArrayLiteral(".local/share/RecentDocuments/")
+		);
 	}
 }
 
-static bool excluded(QStringView path)
+static bool excluded(QByteArray const &path)
 {
 	return path.startsWith(trash_path) || path.startsWith(recent_documents_path);
 }
 
-/* QString cache */
-/* Note: QString is reference counted. */
+/* QByteArray cache */
+/* Note: QByteArray is reference counted. */
 
-typedef std::set<QString> QString_set_t;
+typedef std::set<QByteArray> QByteArray_set_t;
 
-static QString_set_t qstring_cache;
+static QByteArray_set_t qbytearray_cache;
 
-static QString const &get_unique_qstring(QString &&value)
+static QByteArray const &get_unique_qbytearray(QByteArray &&value)
 {
-	std::pair<QString_set_t::iterator, bool> emplaced =
-		qstring_cache.emplace(std::move(value));
+	std::pair<QByteArray_set_t::iterator, bool> emplaced =
+		qbytearray_cache.emplace(std::move(value));
 	return *emplaced.first;
 }
 
 /* locate cache */
 
-typedef std::map<locate_query_t, std::forward_list<QString>> locate_cache_t;
+typedef std::map<locate_query_t, std::forward_list<QByteArray>> locate_cache_t;
 static locate_cache_t locate_cache;
 
-static std::forward_list<QString> const *locate_with_cache(
+static std::forward_list<QByteArray> const *locate_with_cache(
 	locate_query_t const *locate_query)
 {
 	std::pair<locate_cache_t::iterator, bool> emplaced =
@@ -128,9 +113,9 @@ static std::forward_list<QString> const *locate_with_cache(
 			locate_query->base_name,
 			locate_query->ignore_case,
 			[iter](std::string_view item){
-				QString string = QString::fromUtf8(item.data(), item.size());
-				if(! excluded(string)){
-					iter->second.push_front(get_unique_qstring(std::move(string)));
+				QByteArray bytearray(item.data(), item.size());
+				if(! excluded(bytearray)){
+					iter->second.push_front(get_unique_qbytearray(std::move(bytearray)));
 						/* descending order */
 				}
 				return 0;
@@ -148,12 +133,14 @@ static std::forward_list<QString> const *locate_with_cache(
 
 static QString const hidden_icon = QStringLiteral("view-hidden");
 
-static bool hidden(QStringView path)
+static bool hidden(QByteArray const &path)
 {
-	return path.contains(QStringLiteral("/."));
+	return path.contains(QByteArrayLiteral("/."));
 }
 
-static bool lt(QString const &left, QString const &right)
+static std::size_t count_units(QByteArray const &x, int position, int n);
+
+static bool lt(QByteArray const &left, QByteArray const &right)
 {
 	bool l_not_in_home = ! left.startsWith(home_path);
 	bool r_not_in_home = ! right.startsWith(home_path);
@@ -167,8 +154,8 @@ static bool lt(QString const &left, QString const &right)
 		return l_hidden < r_hidden;
 	}
 	
-	int l_sep = left.lastIndexOf(u'/');
-	int r_sep = right.lastIndexOf(u'/');
+	int l_sep = left.lastIndexOf('/');
+	int r_sep = right.lastIndexOf('/');
 	if(l_sep < 0 || r_sep < 0){
 		return false; /* something wrong */
 	}
@@ -194,7 +181,7 @@ static bool lt(QString const &left, QString const &right)
 static std::time_t const interval = 60;
 
 struct queried_t {
-	std::forward_list<QString> list;
+	std::forward_list<QByteArray> list;
 	std::size_t max_length;
 	std::time_t last_checked_time;
 	
@@ -211,16 +198,15 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 		query_cache.try_emplace(std::move(query));
 	query_cache_t::iterator iter = emplaced.first;
 	if(emplaced.second){
-		std::forward_list<QString> const *list =
+		std::forward_list<QByteArray> const *list =
 			locate_with_cache(&iter->first.locate_query);
 		std::size_t n = 0;
 		for(
-			std::forward_list<QString>::const_iterator i = list->cbegin();
+			std::forward_list<QByteArray>::const_iterator i = list->cbegin();
 			i != list->cend();
 			++ i
 		){
-			QByteArray utf8 = i->toUtf8();
-			if(filter_query(stringview_of_qbytearray(&utf8), &iter->first)){
+			if(filter_query(stringview_of_qbytearray(&*i), &iter->first)){
 				iter->second.list.push_front(*i); /* ascending order */
 				++ n;
 			}
@@ -231,14 +217,27 @@ static queried_t const *query_with_cache(query_t &&query, std::time_t now)
 	}else if(now - iter->second.last_checked_time > interval){
 		/* remove the paths removed after those were cached */
 		iter->second.list.remove_if(
-			[&query](QString const &item){
-				QByteArray utf8 = item.toUtf8();
-				return ! refilter_query(stringview_of_qbytearray(&utf8), &query);
+			[&query](QByteArray const &item){
+				return ! refilter_query(stringview_of_qbytearray(&item), &query);
 			}
 		);
 		iter->second.last_checked_time = now;
 	}
 	return &iter->second;
+}
+
+/* QString cache */
+/* Note: QString is reference counted. */
+
+typedef std::set<QString> QString_set_t;
+
+static QString_set_t qstring_cache;
+
+static QString const &get_unique_qstring(QString &&value)
+{
+	std::pair<QString_set_t::iterator, bool> emplaced =
+		qstring_cache.emplace(std::move(value));
+	return *emplaced.first;
 }
 
 /* icon cache */
@@ -251,11 +250,11 @@ struct icon_t {
 	icon_t(icon_t &&) = default;
 };
 
-typedef std::map<QString, icon_t> icon_cache_t;
+typedef std::map<QByteArray, icon_t> icon_cache_t;
 static icon_cache_t icon_cache;
 
 static QString const &icon_with_cache(
-	QString const &path, QUrl const &url, std::time_t now
+	QByteArray const &path, QUrl const &url, std::time_t now
 )
 {
 	if(hidden(path)){
@@ -270,8 +269,8 @@ static QString const &icon_with_cache(
 			
 #ifdef LOGGING
 			qDebug(
-				"%s: icon_with_cache: %s, %s",
-				log_name, qPrintable(path), qPrintable(iter->second.icon_name)
+				"%s: icon_with_cache: %.*s, %s",
+				log_name, path.size(), path.data(), qPrintable(iter->second.icon_name)
 			);
 #endif
 		}
@@ -306,9 +305,10 @@ static void clear_cache()
 #endif
 	
 	icon_cache.clear();
+	qstring_cache.clear();
 	query_cache.clear();
 	locate_cache.clear();
-	qstring_cache.clear();
+	qbytearray_cache.clear();
 }
 
 /* modification time */
@@ -412,23 +412,37 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 	queried_t const *queried = query_with_cache(std::move(query), now);
 	double n = 0.;
 	for(
-		std::forward_list<QString>::const_iterator iter = queried->list.cbegin();
+		std::forward_list<QByteArray>::const_iterator iter = queried->list.cbegin();
 		iter != queried->list.cend();
 		++ iter
 	){
-		int sep = iter->lastIndexOf(u'/');
+		int sep = iter->lastIndexOf('/');
 		if(sep >= 0){
-			QUrl url = QUrl::fromLocalFile(*iter);
-			QString dir_name = iter->left(sep);
+			QUrl url(
+				QStringLiteral("file://")
+					+ QString::fromLatin1(iter->toPercentEncoding(QByteArrayLiteral("/"))),
+				QUrl::StrictMode
+			);
+			int base_name_length = iter->size() - (sep + 1);
+			char const *base_name = iter->data() + (iter->size() - base_name_length);
+			int dir_name_length;
+			QByteArray dir_name;
 			if(iter->startsWith(home_path)){
-				dir_name.replace(0, home_path.size() - 1, u'~');
+				dir_name_length = 2 + sep - home_path.size();
+				int position = home_path.size() - 1;
+				dir_name.reserve(dir_name_length);
+				dir_name.append('~');
+				dir_name.append(iter->data() + position, sep - position);
+			}else{
+				dir_name_length = sep;
+				dir_name = *iter;
 			}
 			double relevance = 0.25 * (1. - n / queried->max_length); /* keep sorted */
 			KRunner::QueryMatch match(this);
 			match.setId(url.toString());
 			match.setUrls(QList<QUrl>{url});
-			match.setText(iter->right(iter->size() - (sep + 1)));
-			match.setSubtext(dir_name);
+			match.setText(QString::fromUtf8(base_name, base_name_length));
+			match.setSubtext(QString::fromUtf8(dir_name.constData(), dir_name_length));
 			match.setIconName(icon_with_cache(*iter, url, now));
 			match.setRelevance(relevance);
 			match.setActions(this->actions);
@@ -469,6 +483,23 @@ void LocateRunner::run(
 		}
 	}
 }
+
+/* ICU */
+#include <unicode/uiter.h>
+
+static std::size_t count_units(QByteArray const &x, int position, int n)
+{
+	std::size_t result = 0;
+	UCharIterator iter;
+	uiter_setUTF8(&iter, x.data() + position, n);
+	while(iter.hasNext(&iter) != 0){
+		iter.next(&iter);
+		++ result;
+	}
+	return result;
+}
+
+/* moc */
 
 K_PLUGIN_CLASS_WITH_JSON(LocateRunner, "krunner_locate.json")
 
