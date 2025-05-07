@@ -8,6 +8,7 @@ add_library(
 target_compile_definitions(
 	krunner_locate
 	PRIVATE TRANSLATION_DOMAIN="plasma_runner_locate"
+	PRIVATE QT_NO_CAST_FROM_ASCII
 )
 
 target_compile_features(

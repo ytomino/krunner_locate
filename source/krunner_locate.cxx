@@ -60,7 +60,7 @@ static qsizetype rfind_sep(QStringView path)
 {
 	qsizetype sep = -1;
 	for(qsizetype i = path.size() - 1; i >= 0; --i){
-		if(path[static_cast<uint>(i)] == QChar('/')){
+		if(path[static_cast<uint>(i)] == u'/'){
 			sep = i;
 			break;
 		}
@@ -95,7 +95,7 @@ static void setup_home_path()
 {
 	if(home_path.isEmpty()){
 		home_path = QDir::homePath();
-		home_path.append(QChar('/'));
+		home_path.append(u'/');
 		trash_path = home_path;
 		trash_path.append(QStringLiteral(".local/share/Trash/"));
 		recent_documents_path = home_path;
@@ -433,7 +433,7 @@ void LocateRunner::match(KRunner::RunnerContext &context)
 			QUrl url = QUrl::fromLocalFile(*iter);
 			QString dir_name = iter->left(sep);
 			if(iter->startsWith(home_path)){
-				dir_name.replace(0, home_path.size() - 1, QChar('~'));
+				dir_name.replace(0, home_path.size() - 1, u'~');
 			}
 			double relevance = 0.25 * (1. - n / queried->max_length); /* keep sorted */
 			KRunner::QueryMatch match(this);
