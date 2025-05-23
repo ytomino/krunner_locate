@@ -50,9 +50,12 @@ static int spawn_locate(
 {
 	int error;
 	
+	std::size_t pattern_length = pattern.size();
+	char *c_pattern = static_cast<char *>(alloca(pattern_length + 1));
+	std::memcpy(c_pattern, pattern.data(), pattern_length);
+	c_pattern[pattern_length] = '\0';
+	
 	/* argv */
-	char *c_pattern = strndupa(pattern.data(), pattern.size());
-		/* strndup(a) adds '\0' */
 	char const *argv[9];
 	int argc = 0;
 	argv[argc ++] = locate_path;
