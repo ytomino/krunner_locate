@@ -5,18 +5,20 @@
 
 int main(int argc, char const * const *argv)
 {
+	using namespace std::string_view_literals;
+	
 	bool mtime = false;
 	bool verbose = false;
 	int i = 1;
 	while(i < argc){
 		std::string_view e(argv[i]);
-		if(e == "--mtime"){
+		if(e == "--mtime"sv){
 			++ i;
 			mtime = true;
-		}else if(e == "--verbose"){
+		}else if(e == "--verbose"sv){
 			++ i;
 			verbose = true;
-		}else if(e== "--"){
+		}else if(e== "--"sv){
 			++ i;
 			break;
 		}else if(e.size() > 0 && e[0] == '-'){

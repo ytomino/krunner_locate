@@ -10,14 +10,16 @@
 
 std::string_view image(file_type_filter_t x)
 {
+	using namespace std::string_view_literals;
+	
 	switch(x){
 	case ftf_all:
-		return "all";
+		return "all"sv;
 	case ftf_only_dir:
-		return "only_dir";
+		return "only_dir"sv;
 	default:
 		assert(false);
-		return "";
+		return std::string_view();
 	}
 }
 
