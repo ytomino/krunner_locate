@@ -1,6 +1,18 @@
 Plasma Locate Runner
 ====================
 
+GitHubから `codeberg.org`_ への移行を試し中です。
+ご迷惑をおかけします。
+Plasma 6への対応も向こうで行っています。
+
+I'm trying to migrate from GitHub to `codeberg.org`_.
+Excuse me for troubling you.
+Support for Plasma 6 is also implemented there.
+
+.. _`codeberg.org`: https://codeberg.org/ytomino/krunner_locate
+
+----
+
 This is a KRunner plugin to find files and directories with locate.
 
 Prerequisites
